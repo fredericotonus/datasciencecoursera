@@ -84,10 +84,10 @@ str(whole_set)
 # read features dataset as a character
 features <- readLines("./UCI HAR Dataset/features.txt")
 
-# extract the mean measurements with a regular expression with grep function
+# extract the mean measurements with a regular expression using grep function
 mean <- grep("mean", features, ignore.case=TRUE)
 
-# extract the standard deviation measurements with a regular expression with 
+# extract the standard deviation measurements with a regular expression using 
 # grep function
 std <- grep("std", features, ignore.case=TRUE)
 
@@ -127,7 +127,7 @@ mean_std_set$activity %<>%
 
 ### 4. Labeling appropriately the dataset with descriptive variable names.
 
-# split the data in each element of the feature character separated by one or more spaces
+# resuming features vector, split it in each element separated by one or more spaces
 # and turn it into a matrix with simplify
 feat <- str_split(features, "\\s+", simplify = TRUE)
 
@@ -155,15 +155,15 @@ str(mean_std_set)
 # ...
 
 
-### 5. Creating a new tidy dataset with the average of each variable for each activity
-### and each subject.
+### 5. Creating a new tidy dataset with the average of each variable for each subject
+### and each activity.
 
 # To achieve that, we need dplyr library
 library(dplyr)
 
 # With %>% operator, it is easier to write a more logical and intuitive code line
 avg_tidy_set <- mean_std_set %>%
-  group_by(subject, activity) %>% # first we indicate the variables supposed to be grouped
+  group_by(subject, activity) %>% # first we indicate the variables to be grouped
   summarize(across(               # then we apply the mean function to the other columns and
     .cols = 1:86,                   # rename them
     .fns = ~mean(., na.rm=TRUE),
@@ -188,7 +188,7 @@ head(avg_tidy_set)
 # A tibble: 6 × 88
 # Groups:   subject [1]
 # subject activity   `mean_tBodyAcc-mean()-X` `mean_tBodyAcc-mean()-Y` `mean_tBodyAcc-mean()-Z`
-# <int> <chr>                         <dbl>                    <dbl>                    <dbl>
+#      <int> <chr>                       <dbl>                    <dbl>                    <dbl>
 # 1       1 ascending                     0.255                 -0.0240                   -0.0973
 # 2       1 descending                    0.289                 -0.00992                  -0.108 
 # 3       1 laying                        0.222                 -0.0405                   -0.113 
