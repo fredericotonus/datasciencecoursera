@@ -1,0 +1,171 @@
+---
+title: "PML Project"
+author: "Frederico Tonus"
+date: "2026-02-05"
+output: html_document
+---
+## Executive summary
+
+This report analyses a data set gathered through devices such as *Jawbone Up*, *Nike FuelBand* and *Fitbit*. They quantified personal activities taken by enthusiasts about self movement. These measurements were gotten from accelerometers on the belt, forearm, arm and dumbell of six volunteers. This link http://groupware.les.inf.puc-rio.br/har has more information about it. 
+
+
+## Objective
+
+The goal here is to predict the manner in which the participants did the exercise, by creating a trained model that better understands the data and its underlying variables and give a response about the "classe" variable, which is the one to be predicted. After the cross-validation process and performance testing, there will be 20 test cases at the final to predict and get the assignment done. 
+
+For this purpose, we are going to load the following packages:
+
+```{r, message=FALSE}
+library(Require)
+packages_list <- c("ggplot2", "caret", "kernlab", "randomForest", "rpart", "rpart.plot")
+Require(packages_list)
+```
+
+
+## Data source
+
+The data sets can be found on the following links, both on the training set and on the testing set (test cases):
+```{r}
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+
+```{r, include=FALSE}
+path <- paste(getwd(), "/", sep = "")
+training <- file.path(path, "pml-training.csv")
+testing <- file.path(path, "pml-testing.csv")
+```
+
+```{r, include=FALSE}
+if(!file.exists(training)){
+        download.file(train_url, destfile = training)
+}
+
+if(!file.exists(testing)){
+        download.file(test_url, destfile = testing)
+}
+```
+
+After downloading the data sets, we can proceed to their cleaning.
+
+
+## Data loading and cleaning
+
+```{r}
+train_file <- read.csv(training, na.strings = c("", "NA", "#DIV/0!"))
+test_cases <- read.csv(testing, na.strings = c("", "NA", "#DIV/0!"))
+```
+
+```{r, include=FALSE}
+ncol <- length(names(train_file))
+```
+
+After reading the training file into R, we can see that there are `r ncol` columns in the data set. The first seven contain info about identification of the participant, id of the measurement or some time-related info on it. Let's drop these. 
+
+```{r}
+train_data <- train_file[, 8:length(colnames(train_file))]
+```
+
+It is also very noticeable that there are lots of missing values in the data set, visibly on the same columns for the majority of the observations. Let's quantify this perception.
+
+```{r}
+NA_pcent <- colMeans(is.na(train_data))
+NA_cols <- length(NA_pcent[which(NA_pcent!=0)])
+range(NA_pcent[which(NA_pcent!=0)])
+```
+
+From those columns that have missing values, all of them have either almost all or all the observations as an NA. So it is better for the model to be trained without them. After dropping them, we get a `r ncol - 7 - NA_cols` column data frame. 
+
+```{r}
+train_data <- train_data[, colSums(is.na(train_data)) == 0]
+```
+
+The last cleaning step before dividing the data for modeling is to investigate whether we have variables with null or near zero variance, which indicates that they cannot be good predictors for our model.  
+
+```{r}
+variances <- nearZeroVar(train_data, saveMetrics = TRUE)
+sum(variances$zeroVar)
+sum(variances$nzv)
+```
+
+No variables with small or null variance. Now it is time to create the model.
+
+
+## Data division into training and testing sets
+
+From the cleaned train data, we will get pieces for training and testing, slicing in 70-30% proportion. 
+
+```{r}
+inTrain <- createDataPartition(y = train_data$classe, p = 0.7, list = FALSE)
+train_set <- train_data[inTrain, ]
+test_set <- train_data[-inTrain, ]
+```
+
+
+## Training the model
+
+Since we have a categorical outcome to predict, it is advisable to measure the accuracy of the model or its concordance (*kappa*). The random forest algorithm calculates these two measures, which is why it is a good choice for this case.
+Before running the algorithm, we set a 5-fold cross validation as the control parameters for the training. It means that the training set (70% of the original data set) is split into five random samples of the same size, and four of them are set to be used as the training data itself and the other one is used for validation (testing set). This process is repeated four more times alternating the sample set to validate the training. Eventually the results for each turn of the K-fold method are averaged. 
+
+```{r}
+ctrl_par <- trainControl(method = "cv", number = 5)
+RFfit <- train(classe ~., data = train_set, method = "rf", trControl = ctrl_par)
+RFfit
+```
+
+The resulting parameters accuracy and *Kappa* are very high and reassure the efficiency of the model. 
+
+
+## Cross validation
+
+With the model trained and test, we can now check its performance using the test set (30% of the original data set). We can compare the results of the model to the actual value of the predicted variable with a confusion matrix.
+
+```{r}
+RFvalidation <- predict(RFfit, test_set)
+CM <- confusionMatrix(as.factor(test_set$classe), RFvalidation)
+CM
+```
+
+Sensitivity and specificity are very high as well and also consist as relevant indicators for the model efficiency. 
+
+
+## Out of sample error
+
+```{r}
+accuracy <- as.numeric(CM$overall[1])
+OS_error <- 1 - accuracy
+```
+
+The **accuracy** of the model amounts to `r formatC(accuracy*100, digits=2, format="f")`% and its **out of sample error** equals `r formatC(OS_error*100, digits=2, format="f")`%. 
+
+
+## Variable importance
+
+```{r, echo=FALSE}
+imp_var <- varImp(RFfit)
+ggplot(imp_var, top=20) + 
+        geom_col(fill = "darkgreen") +
+        labs(title = "20 most important variables", 
+             y="importance scale", 
+             x="variables") +
+        theme(panel.background = element_rect(fill = "grey")) +
+        theme(plot.background = element_rect(fill = "beige"))
+```
+
+
+## Decision-tree figure
+
+```{r, echo=FALSE}
+forest <- rpart(classe ~., data = train_set, method = "class")
+rpart.plot(forest)
+```
+
+
+## Predicting test cases
+
+Finally, we will apply the model to the test cases and get the results.
+
+```{r}
+predictions <- predict(RFfit, test_cases)
+predictions
+```
